@@ -1,0 +1,9 @@
+{
+  "scenario_name": "NFT Wash Trade Ring",
+  "base_tps": 20,
+  "burst_tps": 800,
+  "duration_seconds": 60,
+  "target_contract_type": "NFT_Marketplace",
+  "nested_fields_complexity": "medium",
+  "reorg_backtrack_blocks": null
+}

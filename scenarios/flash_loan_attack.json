@@ -1,0 +1,9 @@
+{
+  "scenario_name": "DeFi Flash Loan Drain",
+  "base_tps": 50,
+  "burst_tps": 3500,
+  "duration_seconds": 120,
+  "target_contract_type": "DeFi_Lending_Pool",
+  "nested_fields_complexity": "high",
+  "reorg_backtrack_blocks": 5
+}

@@ -1,0 +1,9 @@
+{
+  "scenario_name": "MEV Sandwich Attack",
+  "base_tps": 100,
+  "burst_tps": 2000,
+  "duration_seconds": 90,
+  "target_contract_type": "AMM_Swap_Pool",
+  "nested_fields_complexity": "high",
+  "reorg_backtrack_blocks": 3
+}
