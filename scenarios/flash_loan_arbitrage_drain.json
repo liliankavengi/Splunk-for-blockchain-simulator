@@ -1,0 +1,10 @@
+{
+  "scenario_id": "SIM-092",
+  "attack_vector": "FlashLoanArbitrageDrain",
+  "steady_state_tps": 120,
+  "spike_peak_tps": 4200,
+  "payload_nesting_depth": "recursive_map",
+  "duration_seconds": 180,
+  "target_contract_type": "DeFi_Lending_Pool",
+  "reorg_backtrack_blocks": 8
+}

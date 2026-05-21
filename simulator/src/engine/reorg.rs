@@ -1,19 +1,20 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use sha2::{Digest, Sha256};
 
+use crate::kafka::any_producer::AnyProducer;
 use crate::synthesizer::hashes::FixedHash32;
 use crate::synthesizer::log_builder::BlockchainLog;
 use crate::engine::EngineState;
-use crate::kafka::producer::KafkaProducer;
 
 pub struct ReorgTrigger {
     state: Arc<EngineState>,
-    producer: Arc<KafkaProducer>,
+    producer: Arc<AnyProducer>,
 }
 
 impl ReorgTrigger {
-    pub fn new(state: Arc<EngineState>, producer: Arc<KafkaProducer>) -> Self {
+    pub fn new(state: Arc<EngineState>, producer: Arc<AnyProducer>) -> Self {
         Self { state, producer }
     }
 
@@ -37,7 +38,6 @@ impl ReorgTrigger {
         for (block_num, original_hash) in &entries {
             let forked_hash = Self::fork_hash(original_hash, *block_num);
 
-            // Build a representative reorg marker log for this block
             let reorg_log = BlockchainLog {
                 log_id: uuid::Uuid::new_v4().to_string(),
                 block_number: *block_num,
@@ -57,6 +57,7 @@ impl ReorgTrigger {
                 block_timestamp: chrono::Utc::now(),
                 simulated_at: chrono::Utc::now(),
                 decoded_params: None,
+                contract_args: HashMap::new(),
                 is_reorg: true,
                 original_block_hash: Some(original_hash.clone()),
                 scenario_name: "reorg".to_string(),

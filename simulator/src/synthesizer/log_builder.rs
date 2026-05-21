@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -33,6 +34,9 @@ pub struct BlockchainLog {
     pub block_timestamp: DateTime<Utc>,
     pub simulated_at: DateTime<Utc>,
     pub decoded_params: Option<DecodedParams>,
+    /// Flat Map(String, String) projection of decoded_params for ClickHouse Schema-on-Read.
+    /// Handles deeply nested / recursive JSON without requiring a fixed schema.
+    pub contract_args: HashMap<String, String>,
     pub is_reorg: bool,
     pub original_block_hash: Option<FixedHash32>,
     pub scenario_name: String,
@@ -82,6 +86,8 @@ impl LogBuilder {
             None
         };
 
+        let contract_args = flatten_params(decoded_params.as_ref());
+
         BlockchainLog {
             log_id: Uuid::new_v4().to_string(),
             block_number,
@@ -96,6 +102,7 @@ impl LogBuilder {
             block_timestamp,
             simulated_at: Utc::now(),
             decoded_params,
+            contract_args,
             is_reorg: false,
             original_block_hash: None,
             scenario_name: blueprint.scenario_name.clone(),
@@ -122,6 +129,54 @@ impl LogBuilder {
             original_block_hash: Some(original.block_hash.clone()),
             simulated_at: Utc::now(),
             ..original.clone()
+        }
+    }
+}
+
+/// Flattens `DecodedParams` into a `Map(String, String)` compatible with ClickHouse.
+/// Top-level scalar fields are emitted directly; nested objects are dot-prefixed
+/// (e.g. `protocol_fees.token0`). Arrays are serialised as compact JSON strings
+/// so the map remains flat regardless of nesting depth.
+///
+/// Uses a text round-trip (to_string → from_str) to avoid serde_json's
+/// `to_value` failure on u128 values that exceed u64::MAX.
+fn flatten_params(params: Option<&DecodedParams>) -> HashMap<String, String> {
+    let Some(p) = params else {
+        return HashMap::new();
+    };
+    let json_str = match serde_json::to_string(p) {
+        Ok(s) => s,
+        Err(_) => return HashMap::new(),
+    };
+    let value: serde_json::Value = match serde_json::from_str(&json_str) {
+        Ok(v) => v,
+        Err(_) => return HashMap::new(),
+    };
+    let mut map = HashMap::new();
+    flatten_json("", &value, &mut map);
+    map
+}
+
+fn flatten_json(prefix: &str, value: &serde_json::Value, out: &mut HashMap<String, String>) {
+    match value {
+        serde_json::Value::Object(obj) => {
+            for (k, v) in obj {
+                let key = if prefix.is_empty() {
+                    k.clone()
+                } else {
+                    format!("{}.{}", prefix, k)
+                };
+                flatten_json(&key, v, out);
+            }
+        }
+        serde_json::Value::Array(_) => {
+            // Arrays (swap_path, collateral_assets, merkle_proof, traits) are
+            // stored as compact JSON strings to keep the map flat.
+            out.insert(prefix.to_string(), value.to_string());
+        }
+        serde_json::Value::Null => {}
+        other => {
+            out.insert(prefix.to_string(), other.to_string().trim_matches('"').to_string());
         }
     }
 }

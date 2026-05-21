@@ -7,6 +7,11 @@ edition.workspace = true
 name = "simulator"
 path = "src/main.rs"
 
+[features]
+# Enable real Kafka publishing. Requires a C toolchain (lz4-sys native build).
+# Omit this feature to build with only the file/stdout publisher (no native deps).
+kafka = ["dep:rskafka"]
+
 [dependencies]
 tokio.workspace              = true
 serde.workspace              = true
@@ -23,7 +28,7 @@ thiserror.workspace          = true
 chrono.workspace             = true
 uuid.workspace               = true
 
-rskafka    = { version = "0.5", features = ["lz4"] }
+rskafka    = { version = "0.5", features = ["snap"], optional = true }
 axum       = { version = "0.7", features = ["macros"] }
 tower      = { version = "0.4" }
 tower-http = { version = "0.5", features = ["validate-request"] }

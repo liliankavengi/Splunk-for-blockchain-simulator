@@ -1,3 +1,5 @@
+#![cfg(feature = "kafka")]
+
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -64,7 +66,7 @@ impl KafkaProducer {
         self.in_flight.fetch_add(1, Ordering::Relaxed);
         let result = self
             .partition_client
-            .produce(vec![record], Compression::Lz4)
+            .produce(vec![record], Compression::Snappy)
             .await;
         self.in_flight.fetch_sub(1, Ordering::Relaxed);
 
@@ -88,7 +90,7 @@ impl KafkaProducer {
             .collect();
 
         self.partition_client
-            .produce(records, Compression::Lz4)
+            .produce(records, Compression::Snappy)
             .await
             .map_err(|e| anyhow::anyhow!("Kafka batch produce error: {}", e))?;
 

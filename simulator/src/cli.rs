@@ -16,8 +16,8 @@ pub struct Cli {
     #[arg(long, default_value = "localhost:9092")]
     pub brokers: String,
 
-    /// Kafka topic to publish logs to
-    #[arg(long, default_value = "blockchain-logs-sim")]
+    /// Kafka topic to publish logs to (overridden by ACTIVE_INGEST_TOPIC env var)
+    #[arg(long, env = "ACTIVE_INGEST_TOPIC", default_value = "blockchain-logs-sim")]
     pub kafka_topic: String,
 
     /// Admin dashboard HTTP port
@@ -31,4 +31,9 @@ pub struct Cli {
     /// ClickHouse URL (used for post-run assertion hints)
     #[arg(long, default_value = "http://localhost:8123")]
     pub clickhouse_url: String,
+
+    /// Write logs as NDJSON to this file instead of Kafka ("-" for stdout).
+    /// When set, Kafka is not used even if the kafka feature is compiled in.
+    #[arg(long, env = "SIM_OUTPUT_FILE")]
+    pub output_file: Option<String>,
 }

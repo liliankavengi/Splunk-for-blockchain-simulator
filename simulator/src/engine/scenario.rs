@@ -9,12 +9,12 @@ use crate::config::{RuntimeConfig, ScenarioBlueprint};
 use crate::dashboard::metrics::SimMetrics;
 use crate::engine::{tps_ramp, EngineState};
 use crate::engine::reorg::ReorgTrigger;
-use crate::kafka::producer::KafkaProducer;
+use crate::kafka::any_producer::AnyProducer;
 use crate::synthesizer::log_builder::LogBuilder;
 
 pub struct ScenarioEngine {
     blueprint: Arc<ScenarioBlueprint>,
-    producer: Arc<KafkaProducer>,
+    producer: Arc<AnyProducer>,
     metrics: Arc<SimMetrics>,
     state: Arc<EngineState>,
 }
@@ -31,7 +31,7 @@ impl ScenarioEngine {
     pub fn new(
         blueprint: ScenarioBlueprint,
         _config: RuntimeConfig,
-        producer: Arc<KafkaProducer>,
+        producer: Arc<AnyProducer>,
         metrics: Arc<SimMetrics>,
         state: Arc<EngineState>,
     ) -> Self {
@@ -127,7 +127,7 @@ async fn worker_loop(
     worker_id: usize,
     n_workers: usize,
     blueprint: Arc<ScenarioBlueprint>,
-    producer: Arc<KafkaProducer>,
+    producer: Arc<AnyProducer>,
     state: Arc<EngineState>,
     metrics: Arc<SimMetrics>,
     deadline: Instant,

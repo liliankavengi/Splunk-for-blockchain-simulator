@@ -16,7 +16,8 @@ use cli::Cli;
 use config::{load_scenario, RuntimeConfig};
 use dashboard::{metrics::SimMetrics, server::DashboardServer};
 use engine::{scenario::ScenarioEngine, EngineState};
-use kafka::producer::KafkaProducer;
+use kafka::any_producer::AnyProducer;
+use kafka::file_producer::FileProducer;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -44,15 +45,37 @@ async fn main() -> anyhow::Result<()> {
     // Shared metrics
     let metrics = Arc::new(SimMetrics::new()?);
 
-    // Kafka producer
-    let producer = Arc::new(
-        KafkaProducer::new(
-            &runtime_config.kafka_brokers,
-            &runtime_config.kafka_topic,
-            Arc::clone(&metrics),
-        )
-        .await?,
-    );
+    // Build the publisher: file/stdout takes priority; fall back to Kafka if
+    // compiled in, or stdout if nothing else is configured.
+    let producer: Arc<AnyProducer> = if let Some(ref path) = cli.output_file {
+        if path == "-" {
+            Arc::new(AnyProducer::File(FileProducer::to_stdout()))
+        } else {
+            Arc::new(AnyProducer::File(FileProducer::to_file(path).await?))
+        }
+    } else {
+        #[cfg(feature = "kafka")]
+        {
+            use kafka::producer::KafkaProducer;
+            Arc::new(AnyProducer::Kafka(
+                KafkaProducer::new(
+                    &runtime_config.kafka_brokers,
+                    &runtime_config.kafka_topic,
+                    Arc::clone(&metrics),
+                )
+                .await?,
+            ))
+        }
+        #[cfg(not(feature = "kafka"))]
+        {
+            tracing::warn!(
+                "Kafka feature not compiled in. Writing logs to stdout. \
+                 Use --output-file <path> to write to a file, or rebuild \
+                 with --features kafka to enable Kafka publishing."
+            );
+            Arc::new(AnyProducer::File(FileProducer::to_stdout()))
+        }
+    };
 
     // Engine state — start at a realistic Ethereum block height
     let reorg_cap = blueprint.reorg_backtrack_blocks.unwrap_or(10) * 2;
@@ -128,11 +151,19 @@ async fn main() -> anyhow::Result<()> {
     println!("║  Reorg Triggered: {:<31}║", summary.reorg_triggered);
     println!("╚══════════════════════════════════════════════════╝");
     println!();
-    println!("Run the assertions binary to verify ClickHouse ingestion:");
-    println!(
-        "  ./target/release/assertions \\\n    --clickhouse-url http://localhost:8123 \\\n    --database blockchain_sim \\\n    --scenario-name \"{}\" \\\n    --expected-logs {}",
-        summary.scenario_name, summary.total_logs
-    );
+
+    if cli.output_file.is_none() {
+        #[cfg(feature = "kafka")]
+        println!(
+            "Run the assertions binary to verify ClickHouse ingestion:\n\
+             ./target/release/assertions \\\n  \
+             --clickhouse-url http://localhost:8123 \\\n  \
+             --database blockchain_sim \\\n  \
+             --scenario-name \"{}\" \\\n  \
+             --expected-logs {}",
+            summary.scenario_name, summary.total_logs
+        );
+    }
 
     Ok(())
 }
