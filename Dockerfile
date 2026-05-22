@@ -1,46 +1,42 @@
 # ── Stage 1: build ──────────────────────────────────────────────────────────
-FROM rust:1.79-slim AS builder
+FROM rust:slim AS builder
+
+# pkg-config + libssl-dev are needed by the clickhouse crate in the assertions
+# workspace member (even though we only build the simulator binary, the
+# workspace resolver downloads all crates).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    pkg-config libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
 
-# Cache dependency compilation separately from source
-COPY Cargo.toml Cargo.lock ./
-COPY simulator/Cargo.toml simulator/Cargo.toml
-COPY assertions/Cargo.toml assertions/Cargo.toml
+COPY . .
 
-# Create stub lib/main files so `cargo fetch` can resolve the workspace
-RUN mkdir -p simulator/src assertions/src && \
-    echo 'fn main() {}' > simulator/src/main.rs && \
-    echo 'fn main() {}' > assertions/src/main.rs && \
-    cargo fetch
-
-# Copy real source and build (no kafka feature — no C toolchain required)
-COPY simulator/src simulator/src
-COPY assertions/src assertions/src
-COPY scenarios    scenarios
-
-RUN cargo build --release -p simulator
+# BuildKit cache mounts keep the Cargo registry and incremental build artefacts
+# between Render builds, so only changed crates are recompiled.
+# The binary is copied to /usr/local/bin before the cache mount is released.
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/build/target \
+    cargo build --release -p simulator && \
+    cp target/release/simulator /usr/local/bin/simulator
 
 # ── Stage 2: runtime ────────────────────────────────────────────────────────
-FROM debian:bookworm-slim
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+# distroless/cc-debian12:nonroot — no shell, no package manager,
+# runs as uid 65532, minimal CVE surface.
+FROM gcr.io/distroless/cc-debian12:nonroot
 
 WORKDIR /app
 
-COPY --from=builder /build/target/release/simulator ./simulator
-COPY --from=builder /build/scenarios               ./scenarios
+COPY --from=builder /usr/local/bin/simulator ./simulator
+COPY --from=builder /build/scenarios         ./scenarios
 
-# Render injects $PORT; the simulator reads it via the --dashboard-port / PORT env var.
+# Render injects $PORT; simulator reads it via the PORT env var.
+# SIM_SCENARIO is read directly by clap — no shell required.
 ENV DASHBOARD_PASSWORD=changeme
 ENV SIM_OUTPUT_FILE=-
+ENV SIM_SCENARIO=/app/scenarios/flash_loan_attack.json
 
 EXPOSE 8080
 
-# Default: run the flash-loan scenario, stream NDJSON to stdout.
-# Override SIM_SCENARIO to pick a different scenario file at deploy time.
-ENV SIM_SCENARIO=/app/scenarios/flash_loan_attack.json
-
-CMD ["/bin/sh", "-c", "/app/simulator --scenario $SIM_SCENARIO"]
+ENTRYPOINT ["/app/simulator"]
