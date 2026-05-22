@@ -1,44 +1,38 @@
 # ── Stage 1: build ──────────────────────────────────────────────────────────
-FROM rust:1.79-slim AS builder
+FROM rust:slim AS builder
+
+# pkg-config + libssl-dev are needed by the clickhouse crate in the assertions
+# workspace member (even though we only build the simulator binary, the
+# workspace resolver downloads all crates).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    pkg-config libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
 
-# Copy workspace manifests + lock file so the dep-cache layer is independent
-# of source changes.
-COPY Cargo.toml Cargo.lock ./
-COPY simulator/Cargo.toml  simulator/Cargo.toml
-COPY assertions/Cargo.toml assertions/Cargo.toml
+COPY . .
 
-# Build deps with stub binaries, then throw away the stub artifacts.
-# Any subsequent source-only change reuses this cached layer.
-RUN mkdir -p simulator/src assertions/src && \
-    printf 'fn main(){}' > simulator/src/main.rs && \
-    printf 'fn main(){}' > assertions/src/main.rs && \
+# BuildKit cache mounts keep the Cargo registry and incremental build artefacts
+# between Render builds, so only changed crates are recompiled.
+# The binary is copied to /usr/local/bin before the cache mount is released.
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/build/target \
     cargo build --release -p simulator && \
-    rm -f  target/release/simulator \
-           target/release/deps/simulator-* \
-           target/release/.fingerprint/simulator-*/dep-* && \
-    rm -rf simulator/src assertions/src
-
-# Copy real source and rebuild (deps already compiled above)
-COPY simulator/src simulator/src
-COPY assertions/src assertions/src
-COPY scenarios     scenarios
-
-RUN cargo build --release -p simulator
+    cp target/release/simulator /usr/local/bin/simulator
 
 # ── Stage 2: runtime ────────────────────────────────────────────────────────
-# distroless/cc includes glibc + libgcc but no shell or package manager,
-# drastically reducing the CVE surface vs debian:bookworm-slim.
+# distroless/cc-debian12:nonroot — no shell, no package manager,
+# runs as uid 65532, minimal CVE surface.
 FROM gcr.io/distroless/cc-debian12:nonroot
 
 WORKDIR /app
 
-COPY --from=builder /build/target/release/simulator ./simulator
-COPY --from=builder /build/scenarios                ./scenarios
+COPY --from=builder /usr/local/bin/simulator ./simulator
+COPY --from=builder /build/scenarios         ./scenarios
 
 # Render injects $PORT; simulator reads it via the PORT env var.
-# SIM_SCENARIO is read directly by clap (no shell needed).
+# SIM_SCENARIO is read directly by clap — no shell required.
 ENV DASHBOARD_PASSWORD=changeme
 ENV SIM_OUTPUT_FILE=-
 ENV SIM_SCENARIO=/app/scenarios/flash_loan_attack.json
