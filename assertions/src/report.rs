@@ -40,8 +40,8 @@ pub fn print_report(report: &AssertionReport) -> bool {
 
     // Alert latency
     let l = &report.latency;
-    let l_label = if l.passed { "[PASS]" } else { "[FAIL]" };
-    if l.alerts_total == 0 {
+    let l_label = if l.skipped { "[SKIP]" } else if l.passed { "[PASS]" } else { "[FAIL]" };
+    if l.skipped {
         println!("║  {}  Alert Latency       No alerts table found — skipped{:<8}║", l_label, "");
     } else {
         println!(
@@ -68,7 +68,7 @@ pub fn print_report(report: &AssertionReport) -> bool {
 
     // Compression
     let k = &report.compression;
-    let k_label = if k.passed { "[PASS]" } else { "[FAIL]" };
+    let k_label = if k.skipped { "[SKIP]" } else if k.passed { "[PASS]" } else { "[FAIL]" };
     if k.skipped {
         println!("║  {}  Compression Ratio   system.parts unavailable — skipped{:<4}║", k_label, "");
     } else {
@@ -80,7 +80,10 @@ pub fn print_report(report: &AssertionReport) -> bool {
 
     println!("╠{}╣", sep);
 
-    let all_passed = c.passed && l.passed && r.passed && k.passed;
+    let all_passed = c.passed
+        && (l.passed || l.skipped)
+        && (r.passed || r.skipped)
+        && (k.passed || k.skipped);
     if all_passed {
         println!("║  ✓  ALL ASSERTIONS PASSED — exit code 0{:<21}║", "");
     } else {

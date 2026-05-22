@@ -11,11 +11,12 @@ use crate::engine::EngineState;
 pub struct ReorgTrigger {
     state: Arc<EngineState>,
     producer: Arc<AnyProducer>,
+    scenario_name: String,
 }
 
 impl ReorgTrigger {
-    pub fn new(state: Arc<EngineState>, producer: Arc<AnyProducer>) -> Self {
-        Self { state, producer }
+    pub fn new(state: Arc<EngineState>, producer: Arc<AnyProducer>, scenario_name: String) -> Self {
+        Self { state, producer, scenario_name }
     }
 
     /// Rewrites the last `backtrack_blocks` block hashes, re-publishes them
@@ -60,7 +61,7 @@ impl ReorgTrigger {
                 contract_args: HashMap::new(),
                 is_reorg: true,
                 original_block_hash: Some(original_hash.clone()),
-                scenario_name: "reorg".to_string(),
+                scenario_name: self.scenario_name.clone(),
             };
 
             self.producer.publish(&reorg_log).await?;

@@ -29,6 +29,14 @@ impl AnyProducer {
         }
     }
 
+    pub async fn flush(&self) -> anyhow::Result<()> {
+        match self {
+            Self::File(p) => p.flush().await,
+            #[cfg(feature = "kafka")]
+            Self::Kafka(_) => Ok(()),
+        }
+    }
+
     pub fn in_flight_count(&self) -> i32 {
         match self {
             Self::File(p) => p.in_flight_count(),

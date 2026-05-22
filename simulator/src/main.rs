@@ -140,6 +140,9 @@ async fn main() -> anyhow::Result<()> {
 
     let summary = engine.run().await?;
 
+    // Flush buffered writes before printing summary so the file is complete.
+    producer.flush().await?;
+
     println!();
     println!("╔══════════════════════════════════════════════════╗");
     println!("║          SIMULATION COMPLETE                     ║");

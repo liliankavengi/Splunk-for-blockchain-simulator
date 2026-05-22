@@ -27,6 +27,11 @@ pub struct DashboardSnapshot {
     pub elapsed_seconds: f64,
 }
 
+/// GET /health — unauthenticated liveness probe for load-balancers and Render.
+pub async fn health_handler() -> impl IntoResponse {
+    (axum::http::StatusCode::OK, "ok")
+}
+
 /// GET /status — returns a live JSON snapshot of simulator metrics.
 pub async fn status_handler(State(ctx): State<DashboardCtx>) -> Json<DashboardSnapshot> {
     Json(DashboardSnapshot {

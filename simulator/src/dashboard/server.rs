@@ -4,7 +4,7 @@ use axum::{middleware, routing::get, Router};
 use tokio::task::JoinHandle;
 
 use crate::dashboard::auth::bearer_auth;
-use crate::dashboard::handlers::{index_handler, metrics_handler, status_handler, DashboardCtx};
+use crate::dashboard::handlers::{health_handler, index_handler, metrics_handler, status_handler, DashboardCtx};
 use crate::dashboard::metrics::SimMetrics;
 use crate::engine::EngineState;
 
@@ -39,13 +39,17 @@ impl DashboardServer {
         let ctx = self.ctx.clone();
 
         let app = Router::new()
-            .route("/", get(index_handler))
-            .route("/status", get(status_handler))
-            .route("/metrics", get(metrics_handler))
-            .route_layer(middleware::from_fn(move |req, next| {
-                let pw = password.clone();
-                bearer_auth(pw, req, next)
-            }))
+            .route("/health", get(health_handler))
+            .merge(
+                Router::new()
+                    .route("/", get(index_handler))
+                    .route("/status", get(status_handler))
+                    .route("/metrics", get(metrics_handler))
+                    .route_layer(middleware::from_fn(move |req, next| {
+                        let pw = password.clone();
+                        bearer_auth(pw, req, next)
+                    })),
+            )
             .with_state(ctx);
 
         let addr = format!("0.0.0.0:{}", self.port);

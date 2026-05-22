@@ -98,7 +98,7 @@ impl ScenarioEngine {
 
         // Trigger reorg if configured
         let reorg_triggered = if let Some(n) = self.blueprint.reorg_backtrack_blocks {
-            let trigger = ReorgTrigger::new(Arc::clone(&self.state), Arc::clone(&self.producer));
+            let trigger = ReorgTrigger::new(Arc::clone(&self.state), Arc::clone(&self.producer), self.blueprint.scenario_name.clone());
             match trigger.trigger(n).await {
                 Ok(count) => {
                     tracing::info!(blocks_reorged = count, "Reorg simulation complete");
@@ -133,7 +133,7 @@ async fn worker_loop(
     deadline: Instant,
 ) -> u64 {
     let seed = worker_id as u64 * 31337 + blueprint.base_tps;
-    let log_counter = Arc::clone(&state.logs_produced);
+    let log_counter = Arc::clone(&state.log_sequence);
     let mut builder = LogBuilder::new(seed, log_counter);
     let mut logs_this_worker = 0u64;
     let mut peak_tps = 0u64;
@@ -153,21 +153,23 @@ async fn worker_loop(
             peak_tps = total_tps;
         }
 
+        // Backpressure: throttle if Kafka queue is > 80% full (check before build
+        // so we don't burn a sequence number on a log we won't publish).
+        if producer.queue_utilization() > 0.80 {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            continue;
+        }
+
         let block_number = state.current_block.load(Ordering::Relaxed);
         let block_hash = state.current_block_hash().await;
         let block_ts = Utc::now();
 
         let log = builder.build(block_number, &block_hash, block_ts, &blueprint);
 
-        // Backpressure: throttle if Kafka queue is > 80% full
-        if producer.queue_utilization() > 0.80 {
-            tokio::time::sleep(Duration::from_millis(10)).await;
-            continue;
-        }
-
         match producer.publish(&log).await {
             Ok(()) => {
                 logs_this_worker += 1;
+                state.logs_produced.fetch_add(1, Ordering::Relaxed);
                 metrics.total_logs_produced.inc();
             }
             Err(e) => {

@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: blockchain-simulator
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter          # upgrade to standard for higher TPS scenarios
+    region: oregon
+
+    envVars:
+      # Render injects PORT automatically; the simulator reads it via the PORT env var.
+      - key: DASHBOARD_PASSWORD
+        generateValue: true   # Render generates a random secret on first deploy
+
+      # Write logs to stdout so Render captures them in its log stream.
+      - key: SIM_OUTPUT_FILE
+        value: "-"
+
+      # Swap to nft_wash_trade.json or sandwich_attack.json as needed.
+      - key: SIM_SCENARIO
+        value: /app/scenarios/flash_loan_attack.json
+
+    healthCheckPath: /health
+    autoDeploy: true

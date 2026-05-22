@@ -75,6 +75,14 @@ impl FileProducer {
         Ok(())
     }
 
+    pub async fn flush(&self) -> anyhow::Result<()> {
+        let mut sink = self.sink.lock().await;
+        if let Sink::File(w) = &mut *sink {
+            w.flush().await?;
+        }
+        Ok(())
+    }
+
     pub fn in_flight_count(&self) -> i32 { 0 }
     pub fn queue_utilization(&self) -> f64 { 0.0 }
 }

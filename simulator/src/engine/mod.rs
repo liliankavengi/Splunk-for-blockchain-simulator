@@ -54,8 +54,11 @@ impl BlockRegistry {
 
 pub struct EngineState {
     pub current_block: AtomicU64,
-    /// Shared with every worker's LogBuilder so all use one global log index.
+    /// Counts only successfully published logs. Used for summaries and dashboards.
     pub logs_produced: Arc<AtomicU64>,
+    /// Monotonically increasing sequence used to assign log_index in LogBuilder.
+    /// Incremented at build-time (before publish), so may exceed logs_produced on failures.
+    pub log_sequence: Arc<AtomicU64>,
     pub current_tps: AtomicU64,
     pub start_time: Instant,
     pub block_registry: Arc<Mutex<BlockRegistry>>,
@@ -67,6 +70,7 @@ impl EngineState {
         Arc::new(Self {
             current_block: AtomicU64::new(initial_block),
             logs_produced: Arc::new(AtomicU64::new(0)),
+            log_sequence: Arc::new(AtomicU64::new(0)),
             current_tps: AtomicU64::new(0),
             start_time: Instant::now(),
             block_registry: registry,

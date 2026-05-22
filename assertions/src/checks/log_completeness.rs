@@ -21,7 +21,8 @@ pub async fn check_log_completeness(
     let loss_pct = if expected == 0 {
         0.0
     } else {
-        let diff = expected.saturating_sub(actual);
+        // Use absolute difference so over-ingestion (actual > expected) is also flagged.
+        let diff = (expected as i64 - actual as i64).unsigned_abs();
         (diff as f64 / expected as f64) * 100.0
     };
 

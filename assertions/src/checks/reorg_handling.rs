@@ -28,8 +28,7 @@ pub async fn check_reorg_handling(
     let actual = client.count_reorg_logs(scenario_name).await?;
     let duplicates = client
         .count_duplicate_block_hashes(scenario_name)
-        .await
-        .unwrap_or(0);
+        .await?;
 
     let passed = actual >= expected_reorg_logs && duplicates == 0;
 

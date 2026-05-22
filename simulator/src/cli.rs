@@ -20,8 +20,8 @@ pub struct Cli {
     #[arg(long, env = "ACTIVE_INGEST_TOPIC", default_value = "blockchain-logs-sim")]
     pub kafka_topic: String,
 
-    /// Admin dashboard HTTP port
-    #[arg(long, default_value_t = 8080)]
+    /// Admin dashboard HTTP port (Render sets $PORT automatically)
+    #[arg(long, env = "PORT", default_value_t = 8080)]
     pub dashboard_port: u16,
 
     /// Admin dashboard Bearer token password

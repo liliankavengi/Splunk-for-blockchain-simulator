@@ -11,6 +11,7 @@ pub struct AlertLatencyResult {
     pub p99_latency_ms: f64,
     pub threshold_pct: f64,
     pub passed: bool,
+    pub skipped: bool,
 }
 
 /// Checks that at least `threshold_pct` of alerts fired within 1 second.
@@ -23,7 +24,6 @@ pub async fn check_alert_latency(
     let alerts = client.fetch_alerts(scenario_name, sim_start).await?;
 
     if alerts.is_empty() {
-        // No alerts table or no alerts found — mark as skipped (pass with caveat)
         tracing::warn!(
             scenario = scenario_name,
             "No alerts found in security_alerts table — skipping latency check"
@@ -31,11 +31,12 @@ pub async fn check_alert_latency(
         return Ok(AlertLatencyResult {
             alerts_total: 0,
             sub_second_count: 0,
-            sub_second_pct: 100.0,
+            sub_second_pct: 0.0,
             max_latency_ms: 0.0,
             p99_latency_ms: 0.0,
             threshold_pct,
             passed: true,
+            skipped: true,
         });
     }
 
@@ -59,5 +60,6 @@ pub async fn check_alert_latency(
         p99_latency_ms: p99,
         threshold_pct: threshold_pct * 100.0,
         passed,
+        skipped: false,
     })
 }
