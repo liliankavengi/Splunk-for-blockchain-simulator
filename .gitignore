@@ -1,4 +1,4 @@
 /target
-Cargo.lock
 .env
 *.log
+sim_out.ndjson

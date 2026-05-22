@@ -8,8 +8,8 @@ use clap::Parser;
     version
 )]
 pub struct Cli {
-    /// Path to scenario JSON/YAML blueprint
-    #[arg(long, short = 's')]
+    /// Path to scenario JSON/YAML blueprint (also read from SIM_SCENARIO env var)
+    #[arg(long, short = 's', env = "SIM_SCENARIO")]
     pub scenario: PathBuf,
 
     /// Kafka broker list (comma-separated)
